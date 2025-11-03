@@ -3,7 +3,9 @@ import json
 
 # Create logs/ directory if it doesn't exist
 def ensure_logs_dir():
-    os.makedirs("logs/call_logs", exist_ok=True)
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    logs_dir = os.path.join(base_dir, "logs", "call_logs")
+    os.makedirs(logs_dir, exist_ok=True)
 
 # Convert any data to single-line JSON string
 def to_jsonl_line(data):
