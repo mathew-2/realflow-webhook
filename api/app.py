@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify
 import os
-from .utils import ensure_logs_dir, extract_and_update_call_state , get_latest_json
+from .utils import extract_and_update_call_state , get_latest_json
 
 
 app = Flask(__name__)
 
-# Ensure log folder structure exists
-ensure_logs_dir()
+# # Ensure log folder structure exists
+# ensure_logs_dir()
 
 @app.route('/webhook', methods=['POST'])
 def receive_webhook():
