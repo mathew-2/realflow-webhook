@@ -98,69 +98,151 @@
 #     return existing
 
 
+# =================================================================================
+
+# import json
+
+# # Store all processed webhook payloads in memory
+# all_json = []
+
+# def extract_and_update_call_state(data):
+#     """
+#     Extracts call info and tool calls from webhook payload.
+#     Stores every call in memory (no file writes).
+#     """
+#     global all_json
+
+#     # Safely get call_id
+#     call_id = (
+#         data.get("message", {})
+#             .get("call", {})
+#             .get("id")
+#     )
+
+#     if not call_id:
+#         return {"error": "No call_id found in webhook data"}
+
+#     # Get tool calls if available
+#     tool_calls = []
+#     msg = data.get("message", {})
+
+#     if "toolCalls" in msg:
+#         tool_calls = msg["toolCalls"]
+#     elif "toolCallList" in data:
+#         tool_calls = data["toolCallList"]
+#     elif "toolWithToolCallList" in data:
+#         tool_calls = data["toolWithToolCallList"]
+
+#     # Build clean summary for this webhook
+#     summary = {
+#         "call_id": call_id,
+#         "tool_calls_count": len(tool_calls),
+#         "tool_calls": []
+#     }
+
+#     for call in tool_calls:
+#         try:
+#             func = call["function"]
+#             name = func.get("name", "")
+#             args = func.get("arguments", {})
+
+#             if isinstance(args, str):
+#                 args = json.loads(args)
+
+#             summary["tool_calls"].append({
+#                 "name": name,
+#                 "args": args
+#             })
+#         except Exception:
+#             continue
+
+#     # Append this summary to history
+#     all_json.append(summary)
+#     return summary
+
+# def get_latest_json():
+#     """Return last stored webhook json"""
+#     return all_json
+
+
+
+
+
 import json
 
-# Store all processed webhook payloads in memory
-all_json = []
+# Store consolidated leads by call_id
+lead_records = {}
 
 def extract_and_update_call_state(data):
     """
-    Extracts call info and tool calls from webhook payload.
-    Stores every call in memory (no file writes).
+    Consolidates all tool calls for each call_id into one complete JSON record.
     """
-    global all_json
+    global lead_records
 
-    # Safely get call_id
     call_id = (
         data.get("message", {})
             .get("call", {})
             .get("id")
     )
-
     if not call_id:
-        return {"error": "No call_id found in webhook data"}
+        return {"error": "No call_id found"}
 
-    # Get tool calls if available
-    tool_calls = []
+    # Initialize record if not exists
+    if call_id not in lead_records:
+        lead_records[call_id] = {
+            "call_id": call_id,
+            "lead_fields": {},
+            "conversation_notes": [],
+            "final_submission": {}
+        }
+
+    record = lead_records[call_id]
+
+    # Detect tool calls
     msg = data.get("message", {})
+    tool_calls = (
+        msg.get("toolCalls")
+        or data.get("toolCallList")
+        or data.get("toolWithToolCallList")
+        or []
+    )
 
-    if "toolCalls" in msg:
-        tool_calls = msg["toolCalls"]
-    elif "toolCallList" in data:
-        tool_calls = data["toolCallList"]
-    elif "toolWithToolCallList" in data:
-        tool_calls = data["toolWithToolCallList"]
-
-    # Build clean summary for this webhook
-    summary = {
-        "call_id": call_id,
-        "tool_calls_count": len(tool_calls),
-        "tool_calls": []
-    }
-
+    # Process each tool call
     for call in tool_calls:
         try:
             func = call["function"]
-            name = func.get("name", "")
+            name = func.get("name")
             args = func.get("arguments", {})
-
             if isinstance(args, str):
                 args = json.loads(args)
-
-            summary["tool_calls"].append({
-                "name": name,
-                "args": args
-            })
         except Exception:
             continue
 
-    # Append this summary to history
-    all_json.append(summary)
-    return summary
+        # Update_Lead_Field → merge structured lead fields
+        if name == "Update_Lead_Field":
+            record["lead_fields"].update(args)
+
+        # Add_Conversation_Note → append note text
+        elif name == "Add_Conversation_Note":
+            note = args.get("conversation_note", "")
+            if note:
+                record["conversation_notes"].append(note)
+
+        # Finalize_Lead_Submission → store consent + summary
+        elif name == "Finalize_Lead_Submission":
+            record["final_submission"].update(args)
+
+        # Record_Consent_Decline → capture reason
+        elif name == "Record_Consent_Decline":
+            record["final_submission"]["decline_reason"] = args.get("decline_reason", "")
+
+    # Save back to dict
+    lead_records[call_id] = record
+    return record
+
 
 def get_latest_json():
-    """Return last stored webhook json"""
-    return all_json
-
-
-
+    """
+    Return the consolidated dictionary of all call_ids and their accumulated data.
+    """
+    return list(lead_records.values())
