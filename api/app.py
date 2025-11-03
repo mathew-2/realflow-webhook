@@ -34,8 +34,8 @@ def return_json():
     return jsonify(result), 200
 
 
-def handler(event, context):
-    return app(event, context)
+# def handler(event, context):
+#     return app(event, context)
 
 if __name__ == '__main__':
     app.run(port=5000)
