@@ -3,9 +3,11 @@ import json
 
 # Create logs/ directory if it doesn't exist
 def ensure_logs_dir():
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    base_dir = "/tmp"  # Vercel's only writable directory
     logs_dir = os.path.join(base_dir, "logs", "call_logs")
     os.makedirs(logs_dir, exist_ok=True)
+    return logs_dir
+
 
 # Convert any data to single-line JSON string
 def to_jsonl_line(data):
@@ -36,7 +38,10 @@ def extract_and_update_call_state(data):
         print(" No call_id found in webhook data.")
         return None
 
-    filepath = f"logs/call_logs/{call_id}.json"
+    # filepath = f"logs/call_logs/{call_id}.json"
+
+    logs_dir = ensure_logs_dir()
+    filepath = os.path.join(logs_dir, f"{call_id}.json")
 
     # Load or initialize existing state
     existing = load_json_if_exists(filepath)
@@ -85,7 +90,7 @@ def extract_and_update_call_state(data):
                 for k, v in args.items():
                     existing["call_details"][func_name]["arguments"][k] = v
 
-    # 5️⃣ Save and return updated log
+    # Save and return updated log
     save_json_to_file(existing, filepath)
     return existing
 
