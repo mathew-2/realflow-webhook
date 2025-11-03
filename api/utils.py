@@ -100,15 +100,15 @@
 
 import json
 
-# Store most recent processed call state
-latest_json = None
+# Store all processed webhook payloads in memory
+all_json = []
 
 def extract_and_update_call_state(data):
     """
     Extracts call info and tool calls from webhook payload.
-    Stores the result in memory (no file writes).
+    Stores every call in memory (no file writes).
     """
-    global latest_json
+    global all_json
 
     # Safely get call_id
     call_id = (
@@ -131,7 +131,7 @@ def extract_and_update_call_state(data):
     elif "toolWithToolCallList" in data:
         tool_calls = data["toolWithToolCallList"]
 
-    # Build clean summary
+    # Build clean summary for this webhook
     summary = {
         "call_id": call_id,
         "tool_calls_count": len(tool_calls),
@@ -144,7 +144,6 @@ def extract_and_update_call_state(data):
             name = func.get("name", "")
             args = func.get("arguments", {})
 
-            # Handle string-encoded JSON
             if isinstance(args, str):
                 args = json.loads(args)
 
@@ -155,14 +154,13 @@ def extract_and_update_call_state(data):
         except Exception:
             continue
 
-    # store in memory
-    latest_json = summary
+    # Append this summary to history
+    all_json.append(summary)
     return summary
-
 
 def get_latest_json():
     """Return last stored webhook json"""
-    return latest_json
+    return all_json
 
 
 
