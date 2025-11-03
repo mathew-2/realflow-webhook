@@ -1,6 +1,0 @@
-__pycache__
-api
-logs
-out.txt
-requirements.txt
-vercel.json
