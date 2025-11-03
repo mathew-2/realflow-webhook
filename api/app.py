@@ -5,14 +5,10 @@ from .utils import extract_and_update_call_state , get_latest_json
 
 app = Flask(__name__)
 
-# # Ensure log folder structure exists
-# ensure_logs_dir()
 
 @app.route('/webhook', methods=['POST'])
 def receive_webhook():
     data = request.get_json(force=True)
-    
-    #print(" Received webhook:", data)
 
     updated = extract_and_update_call_state(data)
     if updated:
