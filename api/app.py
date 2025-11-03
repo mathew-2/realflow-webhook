@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import os
-from utils import ensure_logs_dir, extract_and_update_call_state
+from .utils import ensure_logs_dir, extract_and_update_call_state
+
 
 app = Flask(__name__)
 
