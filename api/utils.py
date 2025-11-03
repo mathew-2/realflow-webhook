@@ -1,97 +1,168 @@
-import os
+# import os
+# import json
+
+
+# latest_json = None
+
+# # Create logs/ directory if it doesn't exist
+# def ensure_logs_dir():
+#     base_dir = "/tmp"  # Vercel's only writable directory
+#     logs_dir = os.path.join(base_dir, "logs", "call_logs")
+#     os.makedirs(logs_dir, exist_ok=True)
+#     return logs_dir
+
+
+# # Convert any data to single-line JSON string
+# def to_jsonl_line(data):
+#     return json.dumps(data)
+
+# # Save a dictionary to a JSON file
+# def save_json_to_file(data, filepath):
+#     with open(filepath, "w") as f:
+#         json.dump(data, f, indent=2)
+
+# # Load a JSON file if it exists
+# def load_json_if_exists(filepath):
+#     if os.path.exists(filepath):
+#         with open(filepath, "r") as f:
+#             return json.load(f)
+#     return None
+
+# def extract_and_update_call_state(data):
+#     """
+#     Extracts call_id from data['call']['id'] and updates logs for Set_Lead_Field / Submit_Lead.
+#     Handles toolCalls inside data['message'].
+#     """
+#     global latest_json
+#     # Extract call_id safely
+#     # call_id = data.get("message",{}).get("call", {}).get("id")
+#     call_id = data["message"]["call"]["id"]
+#     if not call_id:
+#         print(" No call_id found in webhook data.")
+#         return None
+
+#     # filepath = f"logs/call_logs/{call_id}.json"
+
+#     logs_dir = ensure_logs_dir()
+#     filepath = os.path.join(logs_dir, f"{call_id}.json")
+
+#     # Load or initialize existing state
+#     existing = load_json_if_exists(filepath)
+#     if not existing:
+#         existing = {"call_id": call_id, "call_details": {}}
+
+#     # Extract toolCalls from the correct location
+#     tool_calls = []
+#     if "message" in data and "toolCalls" in data["message"]:
+#         tool_calls = data["message"]["toolCalls"]
+#     elif "toolCallList" in data:
+#         tool_calls = data["toolCallList"]
+#     elif "toolWithToolCallList" in data:
+#         tool_calls = data["toolWithToolCallList"]
+
+#     if not tool_calls:
+#         print(f" No toolCalls found for call {call_id}")
+#         return existing
+
+#     # Iterate and update arguments
+#     for call in tool_calls:
+#         try:
+#             func = call["function"]
+#             func_name = func["name"]
+#             args = func["arguments"]
+#         except (KeyError, TypeError):
+#             # skip malformed call entries
+#             continue
+
+#         # Some toolCalls send arguments as JSON strings
+#         if isinstance(args, str):
+#             try:
+#                 args = json.loads(args)
+#             except json.JSONDecodeError:
+#                 continue
+
+#         # Handle Set_Lead_Field and Submit_Lead
+#         if func_name in ["Update_Lead_Field", "Finalize_Lead_Submission"]:
+#             if func_name not in existing["call_details"]:
+#                 existing["call_details"][func_name] = {"name": func_name, "arguments": {}}
+
+#             # For Set_Lead_Field, map field/value
+#             if func_name == "Update_Lead_Field" and "field" in args and "value" in args:
+#                 existing["call_details"][func_name]["arguments"][args["field"]] = args["value"]
+#             else:
+#                 for k, v in args.items():
+#                     existing["call_details"][func_name]["arguments"][k] = v
+
+#     # Save and return updated log
+#     save_json_to_file(existing, filepath)
+#     return existing
+
+
 import json
 
-# Create logs/ directory if it doesn't exist
-def ensure_logs_dir():
-    base_dir = "/tmp"  # Vercel's only writable directory
-    logs_dir = os.path.join(base_dir, "logs", "call_logs")
-    os.makedirs(logs_dir, exist_ok=True)
-    return logs_dir
-
-
-# Convert any data to single-line JSON string
-def to_jsonl_line(data):
-    return json.dumps(data)
-
-# Save a dictionary to a JSON file
-def save_json_to_file(data, filepath):
-    with open(filepath, "w") as f:
-        json.dump(data, f, indent=2)
-
-# Load a JSON file if it exists
-def load_json_if_exists(filepath):
-    if os.path.exists(filepath):
-        with open(filepath, "r") as f:
-            return json.load(f)
-    return None
+# Store most recent processed call state
+latest_json = None
 
 def extract_and_update_call_state(data):
     """
-    Extracts call_id from data['call']['id'] and updates logs for Set_Lead_Field / Submit_Lead.
-    Handles toolCalls inside data['message'].
+    Extracts call info and tool calls from webhook payload.
+    Stores the result in memory (no file writes).
     """
+    global latest_json
 
-    # Extract call_id safely
-    # call_id = data.get("message",{}).get("call", {}).get("id")
-    call_id = data["message"]["call"]["id"]
+    # Safely get call_id
+    call_id = (
+        data.get("message", {})
+            .get("call", {})
+            .get("id")
+    )
+
     if not call_id:
-        print(" No call_id found in webhook data.")
-        return None
+        return {"error": "No call_id found in webhook data"}
 
-    # filepath = f"logs/call_logs/{call_id}.json"
-
-    logs_dir = ensure_logs_dir()
-    filepath = os.path.join(logs_dir, f"{call_id}.json")
-
-    # Load or initialize existing state
-    existing = load_json_if_exists(filepath)
-    if not existing:
-        existing = {"call_id": call_id, "call_details": {}}
-
-    # Extract toolCalls from the correct location
+    # Get tool calls if available
     tool_calls = []
-    if "message" in data and "toolCalls" in data["message"]:
-        tool_calls = data["message"]["toolCalls"]
+    msg = data.get("message", {})
+
+    if "toolCalls" in msg:
+        tool_calls = msg["toolCalls"]
     elif "toolCallList" in data:
         tool_calls = data["toolCallList"]
     elif "toolWithToolCallList" in data:
         tool_calls = data["toolWithToolCallList"]
 
-    if not tool_calls:
-        print(f" No toolCalls found for call {call_id}")
-        return existing
+    # Build clean summary
+    summary = {
+        "call_id": call_id,
+        "tool_calls_count": len(tool_calls),
+        "tool_calls": []
+    }
 
-    # Iterate and update arguments
     for call in tool_calls:
         try:
             func = call["function"]
-            func_name = func["name"]
-            args = func["arguments"]
-        except (KeyError, TypeError):
-            # skip malformed call entries
+            name = func.get("name", "")
+            args = func.get("arguments", {})
+
+            # Handle string-encoded JSON
+            if isinstance(args, str):
+                args = json.loads(args)
+
+            summary["tool_calls"].append({
+                "name": name,
+                "args": args
+            })
+        except Exception:
             continue
 
-        # Some toolCalls send arguments as JSON strings
-        if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except json.JSONDecodeError:
-                continue
+    # store in memory
+    latest_json = summary
+    return summary
 
-        # Handle Set_Lead_Field and Submit_Lead
-        if func_name in ["Update_Lead_Field", "Finalize_Lead_Submission"]:
-            if func_name not in existing["call_details"]:
-                existing["call_details"][func_name] = {"name": func_name, "arguments": {}}
 
-            # For Set_Lead_Field, map field/value
-            if func_name == "Update_Lead_Field" and "field" in args and "value" in args:
-                existing["call_details"][func_name]["arguments"][args["field"]] = args["value"]
-            else:
-                for k, v in args.items():
-                    existing["call_details"][func_name]["arguments"][k] = v
+def get_latest_json():
+    """Return last stored webhook json"""
+    return latest_json
 
-    # Save and return updated log
-    save_json_to_file(existing, filepath)
-    return existing
 
 

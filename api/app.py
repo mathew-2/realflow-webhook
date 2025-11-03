@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import os
-from .utils import ensure_logs_dir, extract_and_update_call_state
+from .utils import ensure_logs_dir, extract_and_update_call_state , get_latest_json
 
 
 app = Flask(__name__)
@@ -25,6 +25,13 @@ def receive_webhook():
 @app.route('/', methods=['GET'])
 def health_check():
     return jsonify({"message": "Webhook server running "}), 200
+
+@app.route('/get_json', methods=['GET'])
+def return_json():
+    result = get_latest_json()
+    if result is None:
+        return jsonify({"error": "No data available yet"}), 404
+    return jsonify(result), 200
 
 
 def handler(event, context):
