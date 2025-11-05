@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import os
-from .utils import extract_and_update_call_state , get_latest_json
+from utils import extract_and_update_call_state , get_latest_json
 
 
 app = Flask(__name__)
