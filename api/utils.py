@@ -24,7 +24,7 @@ def push_to_google_sheet(record):
 
         # Define the scope and credentials
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name(creds_dict ,scope)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
         # Open the Google Sheet (replace with your actual sheet name)
